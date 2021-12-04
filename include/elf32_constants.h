@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 #include <map>
 #define ELF32_ST_BIND(info)          ((info) >> 4)
