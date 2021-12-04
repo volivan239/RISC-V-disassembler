@@ -9,6 +9,7 @@ public:
     std::vector <Elf32_Sym> get_symtable();
     std::vector <uint32_t> read_text();
     const char* get_symbol_name(uint32_t st_name);
+    uint32_t get_start_addr();
 
 private:
     FILE *src_;
