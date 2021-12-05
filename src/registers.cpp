@@ -10,7 +10,7 @@ std::string get_register_name(uint32_t reg) {
         case 5 : return "t0";
         case 6 : return "t1";
         case 7 : return "t2";
-        case 8 : return "s0/fp";
+        case 8 : return "s0";
         case 9 : return "s1";
         default : {
             if (reg <= 17)

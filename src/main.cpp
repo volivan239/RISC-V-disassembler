@@ -58,6 +58,7 @@ void print_commands(Elf_File &elf) {
 signed main(int argc, const char *argv[]) {
     Elf_File elf(argv[1]);
     print_symbtable(elf);
+    printf("\n");
     print_commands(elf);
     return 0;
 }
