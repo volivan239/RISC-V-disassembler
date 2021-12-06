@@ -176,7 +176,7 @@ std::string cmd_parser::rv32im::parse_type_S(uint32_t cmd) {
     uint32_t imm = 0;
     move_bits(cmd, 7, 11, imm, 0);
     move_bits(cmd, 25, 31, imm, 5);
-    int32_t offset = sign_extend(imm, 12); 
+    int32_t offset = sign_extend(imm, 11); 
 
     if (funct3 > 2)
         return "unknown_command";
@@ -240,6 +240,199 @@ std::string cmd_parser::rv32im::parse_cmd(uint32_t cmd) {
 
 
 
+
+uint32_t cmd_parser::rvc::get_opcode(uint32_t cmd) {
+    return read_unsigned(cmd, 0, 1);
+}
+
+uint32_t cmd_parser::rvc::get_funct3(uint32_t cmd) {
+    return read_unsigned(cmd, 13, 15);
+}
+
+uint32_t cmd_parser::rvc::get_funct4(uint32_t cmd) {
+    return read_unsigned(cmd, 12, 15);
+}
+
+uint32_t cmd_parser::rvc::get_funct6(uint32_t cmd) {
+    return read_unsigned(cmd, 10, 15);
+}
+
+uint32_t cmd_parser::rvc::get_rd_rs1(uint32_t cmd) {
+    return read_unsigned(cmd, 7, 11);
+}
+
+uint32_t cmd_parser::rvc::get_rs2(uint32_t cmd) {
+    return read_unsigned(cmd, 2, 6);
+}
+
+uint32_t cmd_parser::rvc::get_rs1_p_rd_p(uint32_t cmd) {
+    return read_unsigned(cmd, 7, 9);
+}
+
+uint32_t cmd_parser::rvc::get_rs2_p_rd_p(uint32_t cmd) {
+    return read_unsigned(cmd, 2, 4);
+}
+
+std::string cmd_parser::rvc::parse_type_00(uint32_t cmd) {
+    uint32_t rd_p = get_rs2_p_rd_p(cmd);
+    uint32_t funct3 = get_funct3(cmd);
+    if (funct3 == 0) {
+        uint32_t imm = 0;
+        move_bits(cmd, 5, 5, imm, 3);
+        move_bits(cmd, 6, 6, imm, 2);
+        move_bits(cmd, 7, 10, imm, 6);
+        move_bits(cmd, 11, 12, imm, 4);
+        return "c.addi4spn " + get_rvc_register_name(rd_p) + ", sp, " + std::to_string(imm);
+    }
+    uint32_t imm = 0;
+    move_bits(cmd, 5, 5, imm, 6);
+    move_bits(cmd, 6, 6, imm, 2);
+    move_bits(cmd, 10, 12, imm, 3);
+    uint32_t rs1_p = get_rs1_p_rd_p(cmd);
+    if (funct3 == 0b010)
+        return "c.lw " + get_rvc_register_name(rd_p) + ", " + std::to_string(imm) + "(" + get_rvc_register_name(rs1_p) + ")";
+    if (funct3 == 0b110)
+        return "c.sw " + get_rvc_register_name(rd_p) + ", " + std::to_string(imm) + "(" + get_rvc_register_name(rs1_p) + ")";
+    return "unknown_command";
+}
+
+std::string cmd_parser::rvc::parse_type_01(uint32_t cmd) {
+    uint32_t funct3 = get_funct3(cmd);
+    if (funct3 == 0b000 || funct3 == 0b010) {
+        uint32_t imm = 0;
+        move_bits(cmd, 2, 6, imm, 0);
+        move_bits(cmd, 12, 12, imm, 5);
+        int32_t simm = sign_extend(imm, 5);
+        uint32_t rd_rs1 = get_rd_rs1(cmd);
+        if (funct3 == 0 && rd_rs1 == 0 && imm == 0)
+            return "c.nop";
+        if (funct3 == 0 && rd_rs1 != 0)
+            return "c.addi " + get_register_name(rd_rs1) + ", " + get_register_name(rd_rs1) + ", " + std::to_string(simm);
+        if (funct3 == 0b010 && rd_rs1 != 0)
+            return "c.li " + get_register_name(rd_rs1) + ", " + std::to_string(simm);
+    }
+    if (funct3 == 0b001 || funct3 == 0b101) {
+        uint32_t imm = 0;
+        move_bits(cmd, 2, 2, imm, 5);
+        move_bits(cmd, 3, 5, imm, 1);
+        move_bits(cmd, 6, 6, imm, 7);
+        move_bits(cmd, 7, 7, imm, 6);
+        move_bits(cmd, 8, 8, imm, 10);
+        move_bits(cmd, 9, 10, imm, 8);
+        move_bits(cmd, 11, 11, imm, 4);
+        move_bits(cmd, 12, 12, imm, 11);
+        int32_t offset = sign_extend(imm, 11);
+        if (funct3 == 0b001)
+            return "c.jal ra, " + std::to_string(offset);
+        if (funct3 == 0b101)
+            return "c.j " + std::to_string(offset);
+    }
+    if (funct3 == 0b011) {
+        uint32_t rd_rs1 = get_rd_rs1(cmd);
+        uint32_t imm = 0;
+        if (rd_rs1 == 2) {
+            move_bits(cmd, 2, 2, imm, 5);
+            move_bits(cmd, 3, 4, imm, 7);
+            move_bits(cmd, 5, 5, imm, 6);
+            move_bits(cmd, 6, 6, imm, 4);
+            move_bits(cmd, 12, 12, imm, 9);
+            int32_t simm = sign_extend(imm, 9);
+            return "c.addi16sp sp, sp, " + std::to_string(simm);
+        }
+        move_bits(cmd, 2, 6, imm, 12); 
+        move_bits(cmd, 12, 12, imm, 17);
+        int32_t simm = sign_extend(imm, 17);
+        if (rd_rs1 != 0)
+            return "c.lui " + get_register_name(rd_rs1) + ", " + std::to_string(simm);
+    }
+    if (funct3 == 0b100) {
+        uint32_t funct2 = read_unsigned(cmd, 10, 11);
+        uint32_t rs1_p_rd_p = get_rs1_p_rd_p(cmd);
+        if (funct2 == 0b11) {
+            uint32_t funct3 = read_unsigned(cmd, 10, 12);
+            uint32_t funct2 = read_unsigned(cmd, 5, 6);
+            uint32_t rs2p = get_rs2_p_rd_p(cmd);
+            if (funct3 == 0b011) {
+                std::vector <std::string> cmd_names = {"c.sub", "c.xor", "c.or", "c.and"};
+                return cmd_names[funct2] + " " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_register_name(rs2p);
+            }
+        }
+        if ((funct2 == 0b00 || funct2 == 0b01) && read_unsigned(cmd, 12, 12) == 0) {
+            std::string cmd_name = funct2 == 0b00 ? "c.srli" : "c.srai";
+            uint32_t imm = read_unsigned(cmd, 2, 6);
+            return cmd_name + " " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_register_name(rs1_p_rd_p) + ", " + std::to_string(imm);
+        }
+        if (funct2 == 0b10) {
+            uint32_t imm = read_unsigned(cmd, 2, 6);
+            move_bits(cmd, 12, 12, imm, 5);
+            int32_t simm = sign_extend(imm, 5);
+            return "c.andi " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_rvc_register_name(rs1_p_rd_p) + ", " + std::to_string(simm);
+        }
+    }
+    if (funct3 == 0b110 || funct3 == 0b111) {
+        uint32_t imm = 0;
+        move_bits(cmd, 2, 2, imm, 5);
+        move_bits(cmd, 3, 4, imm, 1);
+        move_bits(cmd, 5, 6, imm, 6);
+        move_bits(cmd, 10, 11, imm, 3);
+        move_bits(cmd, 12, 12, imm, 8);
+        uint32_t rs1_p = get_rs1_p_rd_p(cmd);
+        int32_t offset = sign_extend(imm, 8);
+        if (funct3 == 0b110)
+            return "c.beqz " + get_rvc_register_name(rs1_p) + ", " + std::to_string(offset);
+        if (funct3 == 0b111)
+            return "c.bnez " + get_rvc_register_name(rs1_p) + ", " + std::to_string(offset);
+    }
+    return "unknown_command";
+}
+
+std::string cmd_parser::rvc::parse_type_10(uint32_t cmd) {
+    uint32_t funct3 = get_funct3(cmd);
+    if (funct3 == 0b000 && read_unsigned(cmd, 12, 12) == 0) {
+        uint32_t rs1_rd = get_rd_rs1(cmd);
+        uint32_t imm = read_unsigned(cmd, 2, 6);
+        return "c.slli " + get_register_name(rs1_rd) + ", " + get_register_name(rs1_rd) + ", " + std::to_string(imm);
+    }
+    if (funct3 == 0b010) {
+        uint32_t rd_rs1 = get_rd_rs1(cmd);
+        uint32_t imm = 0;
+        move_bits(cmd, 2, 3, imm, 6);
+        move_bits(cmd, 4, 6, imm, 2);
+        move_bits(cmd, 12, 12, imm, 5);
+        return "c.lwsp " + get_register_name(rd_rs1) + ", " + std::to_string(imm) + "(sp)";
+    }
+    if (funct3 == 0b100) {
+        uint32_t funct4 = get_funct4(cmd);
+        uint32_t rd_rs1 = get_rd_rs1(cmd);
+        uint32_t rs2 = get_rs2(cmd);
+        if (funct4 == 0b1000 && rs2 == 0)
+            return "c.jr " + get_register_name(rd_rs1);
+        if (funct4 == 0b1000 && rd_rs1 != 0)
+            return "c.mv " + get_register_name(rd_rs1) + ", " + get_register_name(rs2);
+        if (funct4 == 0b1001 && rd_rs1 == 0 && rs2 == 0)
+            return "c.ebreak";
+        if (funct4 == 0b1001 && rs2 == 0)
+            return "c.jalr ra, " + get_register_name(rd_rs1) + ", 0";
+        if (funct4 == 0b1001 && rd_rs1 != 0)
+            return "c.add " + get_register_name(rd_rs1) + ", " + get_register_name(rd_rs1) + ", " + get_register_name(rs2);
+    }
+    if (funct3 == 0b110) {
+        uint32_t rs2 = get_rs2(cmd);
+        uint32_t imm = 0;
+        move_bits(cmd, 7, 8, imm, 6);
+        move_bits(cmd, 9, 12, imm, 2);
+        return "c.swsp " + get_register_name(rs2) + ", " + std::to_string(imm) + "(sp)";
+    }
+    return "unknown_command";
+}
+
 std::string cmd_parser::rvc::parse_cmd(uint32_t cmd) {
-    return "unknown_command (rvc) " + std::to_string(cmd);
+    uint32_t opcode = get_opcode(cmd);
+    if (opcode == 0b00)
+        return parse_type_00(cmd);
+    if (opcode == 0b01)
+        return parse_type_01(cmd);
+    if (opcode == 0b10)
+        return parse_type_10(cmd);
+    return "unknown_command";
 }
