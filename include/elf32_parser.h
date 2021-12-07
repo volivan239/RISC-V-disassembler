@@ -11,11 +11,13 @@ public:
     std::vector <uint32_t> get_text();
     const char* get_symbol_name(uint32_t st_name);
     uint32_t get_start_addr();
+    size_t get_text_section_index();
 
 private:
     FILE *src_;
     Elf32_Ehdr file_hdr_;
     Elf32_Shdr text_hdr_;
+    size_t text_section_index_;
     char *symbol_names_;
     std::vector <Elf32_Sym> symtab_;
     std::vector <uint32_t> text_;

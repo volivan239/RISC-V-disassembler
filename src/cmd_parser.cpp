@@ -1,8 +1,16 @@
 #include <cassert>
-#include <map>
-#include <vector>
 #include "cmd_parser.h"
 #include "registers.h"
+
+cmd_parser::cmd_parser(Elf_File &elf): elf_(elf), cur_addr_(0) {
+    std::vector <Elf32_Sym> symbs = elf.get_symtable();
+
+    for (size_t i = 0; i < symbs.size(); i++) {
+        const char *label = elf.get_symbol_name(symbs[i].st_name);
+        if (symbs[i].st_shndx == elf.get_text_section_index())
+            symtab_[symbs[i].st_value] = std::string(label); 
+    }
+}
 
 bool cmd_parser::get_bit(uint32_t val, size_t pos) {
     return val & (1 << pos);
@@ -39,10 +47,53 @@ int32_t cmd_parser::read_signed(uint32_t src, size_t src_start, size_t src_end) 
     return sign_extend(read_unsigned(src, src_start, src_end), src_end - src_start);
 }
 
+std::string cmd_parser::get_label(int32_t offset) {
+    uint32_t addr = cur_addr_ + offset;
+    if (symtab_.find(addr) != symtab_.end())
+        return symtab_[addr];
+
+    loc_addresses_.insert(addr);
+    char buf[100];
+    sprintf(buf, "LOC_%05x", addr);
+    return std::string(buf);
+}
+
+std::vector <std::string> cmd_parser::parse_cmds() {
+    std::vector <uint32_t> cmds = elf_.get_text();
+    std::vector <std::string> res;
+
+    cur_addr_ = elf_.get_start_addr();
+    for (size_t i = 0; i < cmds.size(); i++) {
+        uint32_t cmd = cmds[i];
+        uint32_t sz = (cmd & 3) == 3 ? 4 : 2;
+        res.push_back(parse_cmd(cmd));
+        cur_addr_ += sz;
+    }
+
+    cur_addr_ = elf_.get_start_addr();
+    for (size_t i = 0; i < cmds.size(); i++) {
+        uint32_t cmd = cmds[i];
+        uint32_t sz = (cmd & 3) == 3 ? 4 : 2;
+        char buf[1000];
+        std::string label = "";
+        if (symtab_.find(cur_addr_) != symtab_.end() || loc_addresses_.find(cur_addr_) != loc_addresses_.end())
+            label = get_label(0);
+
+        if (label == "") {
+            sprintf(buf, "%08x %10s  %s", cur_addr_, "", res[i].c_str());
+        } else {
+            sprintf(buf, "%08x %10s: %s", cur_addr_, label.c_str(), res[i].c_str());
+        }
+        res[i] = std::string(buf);
+        cur_addr_ += sz;
+    }
+    return res;
+}
+
 std::string cmd_parser::parse_cmd(uint32_t cmd) {
     if ((cmd & 3) == 3)
-        return rv32im::parse_cmd(cmd);
-    return rvc::parse_cmd(cmd);
+        return rv32im_.parse_cmd(cmd);
+    return rvc_.parse_cmd(cmd);
 }
 
 
@@ -100,7 +151,7 @@ std::string cmd_parser::rv32im::parse_type_UJ(uint32_t cmd) {
     move_bits(cmd, 21, 30, uimm, 1);
     move_bits(cmd, 31, 31, uimm, 20);
     int32_t offset = sign_extend(uimm, 20);
-    return "jal " + get_register_name(rd) + ", " + std::to_string(offset);
+    return "jal " + get_register_name(rd) + ", " + outer_.get_label(offset);
 }
 
 std::string cmd_parser::rv32im::parse_type_I(uint32_t cmd) {
@@ -166,7 +217,7 @@ std::string cmd_parser::rv32im::parse_type_SB(uint32_t cmd) {
     if (cmd_name == "")
         return "unknown_command";
 
-    return cmd_name + " " + get_register_name(rs1) + ", " + get_register_name(rs2) + ", " + std::to_string(offset);
+    return cmd_name + " " + get_register_name(rs1) + ", " + get_register_name(rs2) + ", " + outer_.get_label(offset);
 }
 
 std::string cmd_parser::rv32im::parse_type_S(uint32_t cmd) {
@@ -235,7 +286,7 @@ std::string cmd_parser::rv32im::parse_cmd(uint32_t cmd) {
         return parse_type_S(cmd);
     if (opcode == 0b0110011)
         return parse_type_R(cmd);
-    return "unknown_command (rv32im) ";
+    return "unknown_command";
 }
 
 
@@ -323,9 +374,9 @@ std::string cmd_parser::rvc::parse_type_01(uint32_t cmd) {
         move_bits(cmd, 12, 12, imm, 11);
         int32_t offset = sign_extend(imm, 11);
         if (funct3 == 0b001)
-            return "c.jal ra, " + std::to_string(offset);
+            return "c.jal ra, " + outer_.get_label(offset);
         if (funct3 == 0b101)
-            return "c.j " + std::to_string(offset);
+            return "c.j " + outer_.get_label(offset);
     }
     if (funct3 == 0b011) {
         uint32_t rd_rs1 = get_rd_rs1(cmd);
@@ -379,9 +430,9 @@ std::string cmd_parser::rvc::parse_type_01(uint32_t cmd) {
         uint32_t rs1_p = get_rs1_p_rd_p(cmd);
         int32_t offset = sign_extend(imm, 8);
         if (funct3 == 0b110)
-            return "c.beqz " + get_rvc_register_name(rs1_p) + ", " + std::to_string(offset);
+            return "c.beqz " + get_rvc_register_name(rs1_p) + ", " + outer_.get_label(offset);
         if (funct3 == 0b111)
-            return "c.bnez " + get_rvc_register_name(rs1_p) + ", " + std::to_string(offset);
+            return "c.bnez " + get_rvc_register_name(rs1_p) + ", " + outer_.get_label(offset);
     }
     return "unknown_command";
 }

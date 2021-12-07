@@ -1,6 +1,5 @@
 #include <cstring>
 #include <cassert>
-#include <iostream>
 #include "elf32_parser.h"
 
 Elf_File::Elf_File(const char *file_name) {
@@ -30,6 +29,7 @@ Elf_File::Elf_File(const char *file_name) {
             strtab_hdr = cur_sect_hdr;
 
         if (!strcmp(section_names + cur_sect_hdr.sh_name, ".text")) {
+            text_section_index_ = i;
             text_hdr_ = text_hdr = cur_sect_hdr;
         }
     }
@@ -95,4 +95,8 @@ const char* Elf_File::get_symbol_name(uint32_t st_name) {
 
 uint32_t Elf_File::get_start_addr() {
     return text_hdr_.sh_addr;
+}
+
+size_t Elf_File::get_text_section_index() {
+    return text_section_index_;
 }
