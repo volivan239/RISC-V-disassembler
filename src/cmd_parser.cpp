@@ -405,13 +405,13 @@ std::string cmd_parser::rvc::parse_type_01(uint32_t cmd) {
             uint32_t rs2p = get_rs2_p_rd_p(cmd);
             if (funct3 == 0b011) {
                 std::vector <std::string> cmd_names = {"c.sub", "c.xor", "c.or", "c.and"};
-                return cmd_names[funct2] + " " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_register_name(rs2p);
+                return cmd_names[funct2] + " " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_rvc_register_name(rs2p);
             }
         }
         if ((funct2 == 0b00 || funct2 == 0b01) && read_unsigned(cmd, 12, 12) == 0) {
             std::string cmd_name = funct2 == 0b00 ? "c.srli" : "c.srai";
             uint32_t imm = read_unsigned(cmd, 2, 6);
-            return cmd_name + " " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_register_name(rs1_p_rd_p) + ", " + std::to_string(imm);
+            return cmd_name + " " + get_rvc_register_name(rs1_p_rd_p) + ", " + get_rvc_register_name(rs1_p_rd_p) + ", " + std::to_string(imm);
         }
         if (funct2 == 0b10) {
             uint32_t imm = read_unsigned(cmd, 2, 6);
