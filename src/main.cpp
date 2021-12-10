@@ -58,6 +58,7 @@ signed main(int argc, const char *argv[]) {
         print_symbtable(elf, fout);
     } catch (std::exception &e) {
         std::cerr << std::string(e.what()) << "\n";
+        fclose(fout);
         return 3;
     }
 
