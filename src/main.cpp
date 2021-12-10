@@ -4,14 +4,15 @@
 #include "elf32_constants.h"
 #include "cmd_parser.h"
 
-void print_symbtable(Elf_File &elf) {
-    printf("%s %-15s %7s %-8s %-8s %-8s %6s %s\n",
+void print_symbtable(Elf_File &elf, FILE *fout) {
+    fprintf(fout, ".symtab\n");
+    fprintf(fout, "%s %-15s %7s %-8s %-8s %-8s %6s %s\n",
             "Symbol", "Value", "Size", "Type", "Bind", "Vis", "Index", "Name");
     std::vector <Elf32_Sym> symbs = elf.get_symtable();
     for (size_t i = 0; i < symbs.size(); i++) {
         auto symbol = symbs[i];
         auto info = symbol.st_info, o = symbol.st_other;
-        printf("[%4i] 0x%-15x %5i %-8s %-8s %-8s %6s %s\n",
+        fprintf(fout, "[%4i] 0x%-15x %5i %-8s %-8s %-8s %6s %s\n",
                 (int) i,
                 symbol.st_value,
                 symbol.st_size, 
@@ -21,20 +22,45 @@ void print_symbtable(Elf_File &elf) {
                 symbol_index.find(symbol.st_shndx) == symbol_index.end() ?
                     std::to_string(symbol.st_shndx).c_str() : symbol_index[symbol.st_shndx],
                 elf.get_symbol_name(symbol.st_name)
-                );
+        );
     }
 }
 
-void print_commands(Elf_File &elf) {
+void print_commands(Elf_File &elf, FILE *fout) {
+    fprintf(fout, ".text\n");
     std::vector <std::string> res = cmd_parser(elf).parse_cmds(); 
     for (std::string cmd : res)
-        printf("%s\n", cmd.c_str());
+        fprintf(fout, "%s\n", cmd.c_str());
 }
 
 signed main(int argc, const char *argv[]) {
-    Elf_File elf(argv[1]);
-    print_symbtable(elf);
-    printf("\n");
-    print_commands(elf);
+    if (argc != 3) {
+        std::cerr << "Error: program should take exactly 2 arguments: input file name and output file name\n";
+        return 1;
+    }
+
+    FILE *fin = fopen(argv[1], "rb");
+    if (fin == nullptr) {
+        std::cerr << "Error: can't open input file for reading\n";
+        return 2;
+    }
+
+    FILE *fout = fopen(argv[2], "w");
+    if (fout == nullptr) {
+        std::cerr << "Error: can't open output file for writing\n";
+        return 2;
+    }
+
+    try {
+        Elf_File elf(fin);
+        print_commands(elf, fout);
+        fprintf(fout, "\n");
+        print_symbtable(elf, fout);
+    } catch (std::exception &e) {
+        std::cerr << std::string(e.what()) << "\n";
+        return 3;
+    }
+
+    fclose(fout);
     return 0;
 }
